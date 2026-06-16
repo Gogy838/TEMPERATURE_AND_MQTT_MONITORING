@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SPE Temperature Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:           #080a0e;
+      --panel:        #0d1117;
+      --surface:      #111820;
+      --border:       #1e2d3d;
+      --accent:       #00d4ff;
+      --accent-dim:   rgba(0, 212, 255, 0.08);
+      --warn:         #f59e0b;
+      --danger:       #ef4444;
+      --success:      #22c55e;
+      --text:         #e2e8f0;
+      --text-muted:   #4a6070;
+      --text-sub:     #7a9ab0;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Space Grotesk', sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background-image:
+        linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+    }
+
+    /* ── TOPBAR ── */
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 2rem;
+      height: 56px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .topbar-left { display: flex; align-items: center; gap: 0.75rem; }
+
+    .topbar-logo {
+      width: 28px; height: 28px;
+      border: 2px solid var(--accent);
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .topbar-logo svg { width: 14px; height: 14px; fill: var(--accent); }
+
+    .topbar-title { font-size: 0.95rem; font-weight: 600; letter-spacing: 0.05em; }
+    .topbar-title span { color: var(--accent); }
+
+    .topbar-right { display: flex; align-items: center; gap: 1.5rem; }
+
+    .topbar-meta { font-size: 0.72rem; color: var(--text-muted); letter-spacing: 0.04em; text-transform: uppercase; }
+    .topbar-meta span { color: var(--text-sub); }
+
+    .conn-pill {
+      display: flex; align-items: center; gap: 0.4rem;
+      padding: 0.3rem 0.75rem; border-radius: 4px;
+      font-size: 0.72rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+      border: 1px solid var(--danger);
+      background: rgba(239,68,68,0.08);
+      color: var(--danger);
+      transition: all 0.3s ease;
+    }
+    .conn-pill.connected  { border-color: var(--success); background: rgba(34,197,94,0.08);  color: var(--success); }
+    .conn-pill.connecting { border-color: var(--warn);    background: rgba(245,158,11,0.08); color: var(--warn); }
+
+    .conn-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+    .conn-pill.connected .conn-dot { animation: pulse-dot 1.8s infinite; }
+
+    @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+    /* ── MAIN ── */
+    main {
+      flex: 1;
+      display: flex; flex-direction: column; align-items: center;
+      padding: 2.5rem 1.5rem;
+      max-width: 1100px;
+      margin: 0 auto;
+      width: 100%;
+      gap: 1.25rem;
+    }
+
+    /* ── PAGE HEADER ── */
+    .page-header {
+      width: 100%;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .page-header-row {
+      display: flex; align-items: flex-end;
+      justify-content: space-between; flex-wrap: wrap; gap: 0.75rem;
+    }
+    .page-header h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.01em; }
+    .page-header p  { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem; text-transform: uppercase; letter-spacing: 0.03em; }
+
+    .topic-tag {
+      font-size: 0.72rem; font-weight: 500; color: var(--accent);
+      background: var(--accent-dim); border: 1px solid rgba(0,212,255,0.2);
+      padding: 0.3rem 0.7rem; border-radius: 4px; letter-spacing: 0.04em;
+    }
+
+    /* ── STATS ROW ── */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+      width: 100%;
+    }
+
+    .stat-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem 1.25rem 1rem;
+    }
+
+    .stat-label {
+      font-size: 0.65rem; text-transform: uppercase;
+      letter-spacing: 0.1em; color: var(--text-muted);
+      margin-bottom: 0.5rem;
+    }
+
+    .stat-value {
+      font-size: 2rem; font-weight: 700; line-height: 1;
+      color: var(--text); transition: color 0.3s;
+    }
+
+    .stat-value.flash { color: var(--accent); }
+
+    .stat-sub {
+      font-size: 0.72rem; color: var(--text-muted);
+      margin-top: 0.4rem;
+    }
+
+    /* ── CHART PANEL ── */
+    .chart-panel {
+      width: 100%;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .panel-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0.75rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    .panel-label {
+      font-size: 0.7rem; font-weight: 600;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    .panel-badge {
+      font-size: 0.65rem; font-weight: 600; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--accent);
+      background: var(--accent-dim); border: 1px solid rgba(0,212,255,0.15);
+      padding: 0.15rem 0.5rem; border-radius: 3px;
+    }
+
+    .chart-wrap {
+      padding: 1.25rem;
+      height: 340px;
+      position: relative;
+    }
+
+    /* ── LOG PANEL ── */
+    .log-panel {
+      width: 100%;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .log-body {
+      padding: 0.75rem 1.25rem;
+      max-height: 180px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column-reverse;
+    }
+
+    .log-body::-webkit-scrollbar { width: 4px; }
+    .log-body::-webkit-scrollbar-track { background: transparent; }
+    .log-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .log-line {
+      display: flex; align-items: baseline; gap: 0.75rem;
+      padding: 0.25rem 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.78rem;
+      font-family: 'Space Grotesk', monospace;
+    }
+    .log-line:last-child { border-bottom: none; }
+
+    .log-time  { color: var(--text-muted); min-width: 70px; }
+    .log-temp  { color: var(--accent); font-weight: 600; }
+    .log-idx   { color: var(--text-muted); font-size: 0.65rem; }
+
+    /* ── INFO STRIP ── */
+    .info-strip {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.85rem 1.25rem;
+      display: flex; align-items: center;
+      justify-content: space-between; flex-wrap: wrap; gap: 0.75rem;
+    }
+
+    .strip-item { display: flex; align-items: center; gap: 0.5rem; }
+    .strip-dot  { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+    .strip-text { font-size: 0.72rem; color: var(--text-muted); letter-spacing: 0.04em; }
+    .strip-text strong { color: var(--text-sub); font-weight: 600; }
+
+    /* ── FOOTER ── */
+    footer {
+      padding: 1rem 2rem;
+      border-top: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      background: var(--panel);
+    }
+    .footer-text { font-size: 0.68rem; color: var(--text-muted); letter-spacing: 0.05em; text-transform: uppercase; }
+    .footer-text span { color: var(--accent); }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 700px) {
+      .stats-row { grid-template-columns: repeat(2, 1fr); }
+      .topbar-meta { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- TOPBAR -->
+  <nav class="topbar">
+    <div class="topbar-left">
+      <div class="topbar-logo">
+        <svg viewBox="0 0 16 16"><path d="M2 8a6 6 0 1 1 12 0A6 6 0 0 1 2 8zm6-4a1 1 0 0 0-1 1v2H5a1 1 0 0 0 0 2h2v2a1 1 0 0 0 2 0v-2h2a1 1 0 0 0 0-2H9V5a1 1 0 0 0-1-1z"/></svg>
+      </div>
+      <span class="topbar-title">IOT<span>.</span>DASH</span>
+    </div>
+    <div class="topbar-right">
+      <div class="topbar-meta">Broker: <span>{{ broker }}:{{ port }}</span></div>
+      <div class="topbar-meta">Topic: <span>{{ topic }}</span></div>
+      <div class="conn-pill" id="conn-pill">
+        <div class="conn-dot"></div>
+        <span id="conn-label">Disconnected</span>
+      </div>
+    </div>
+  </nav>
+
+  <!-- MAIN -->
+  <main>
+
+    <!-- PAGE HEADER -->
+    <div class="page-header">
+      <div class="page-header-row">
+        <div>
+          <h1>Temperature Monitor</h1>
+          <p>Flask backend · MQTT subscriber · live 1 s polling</p>
+        </div>
+        <div class="topic-tag">{{ topic }}</div>
+      </div>
+    </div>
+
+    <!-- STAT CARDS -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-label">Current</div>
+        <div class="stat-value" id="stat-current">0</div>
+        <div class="stat-sub">°C</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Min (session)</div>
+        <div class="stat-value" id="stat-min">0</div>
+        <div class="stat-sub">°C</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Max (session)</div>
+        <div class="stat-value" id="stat-max">0</div>
+        <div class="stat-sub">°C</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Readings</div>
+        <div class="stat-value" id="stat-count">0</div>
+        <div class="stat-sub" id="stat-last-update">last update: —</div>
+      </div>
+    </div>
+
+    <!-- CHART -->
+    <div class="chart-panel">
+      <div class="panel-header">
+        <span class="panel-label">Temperature over time</span>
+        <span class="panel-badge" id="chart-badge">WAITING</span>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="tempChart"></canvas>
+      </div>
+    </div>
+
+    <!-- LOG -->
+    <div class="log-panel">
+      <div class="panel-header">
+        <span class="panel-label">Raw readings log</span>
+        <span class="panel-badge">LIVE</span>
+      </div>
+      <div class="log-body" id="log-body"></div>
+    </div>
+
+    <!-- INFO STRIP -->
+    <div class="info-strip">
+      <div class="strip-item">
+        <div class="strip-dot"></div>
+        <span class="strip-text">Backend: <strong>Flask / Python</strong></span>
+      </div>
+      <div class="strip-item">
+        <div class="strip-dot"></div>
+        <span class="strip-text">Poll interval: <strong>1 s</strong></span>
+      </div>
+      <div class="strip-item">
+        <div class="strip-dot"></div>
+        <span class="strip-text">Transport: <strong>MQTT TCP 1883</strong></span>
+      </div>
+      <div class="strip-item">
+        <div class="strip-dot"></div>
+        <span class="strip-text">Graph points: <strong>last 100</strong></span>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- FOOTER -->
+  <footer>
+    <span class="footer-text">SPE Temperature Dashboard <span>v2.0</span></span>
+    <span class="footer-text">Flask backend — <span>{{ broker }}:{{ port }}</span></span>
+  </footer>
+
+  <script>
+    // ── Chart setup ──────────────────────────────────────────────────────────
+    const ctx = document.getElementById('tempChart').getContext('2d');
+
+    const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+    gradient.addColorStop(0, 'rgba(0, 212, 255, 0.25)');
+    gradient.addColorStop(1, 'rgba(0, 212, 255, 0.00)');
+
+    const chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [{
+          label: 'Temperature (°C)',
+          data: [],
+          borderColor: '#00d4ff',
+          borderWidth: 2,
+          pointRadius: 3,
+          pointBackgroundColor: '#00d4ff',
+          pointBorderColor: '#080a0e',
+          pointBorderWidth: 1.5,
+          fill: true,
+          backgroundColor: gradient,
+          tension: 0.35,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 300 },
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#0d1117',
+            borderColor: '#1e2d3d',
+            borderWidth: 1,
+            titleColor: '#7a9ab0',
+            bodyColor: '#e2e8f0',
+            callbacks: {
+              label: ctx => ` ${ctx.parsed.y.toFixed(2)} °C`
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid:  { color: 'rgba(30,45,61,0.6)' },
+            ticks: { color: '#4a6070', font: { size: 11 }, maxTicksLimit: 10 }
+          },
+          y: {
+            grid:  { color: 'rgba(30,45,61,0.6)' },
+            ticks: { color: '#4a6070', font: { size: 11 },
+                     callback: v => v.toFixed(1) + ' °C' }
+          }
+        }
+      }
+    });
+
+    // ── UI refs ──────────────────────────────────────────────────────────────
+    const connPill    = document.getElementById('conn-pill');
+    const connLabel   = document.getElementById('conn-label');
+    const chartBadge  = document.getElementById('chart-badge');
+    const statCurrent = document.getElementById('stat-current');
+    const statMin     = document.getElementById('stat-min');
+    const statMax     = document.getElementById('stat-max');
+    const statCount   = document.getElementById('stat-count');
+    const statLastUpd = document.getElementById('stat-last-update');
+    const logBody     = document.getElementById('log-body');
+
+    let lastCount = 0;
+
+    function setConn(state) {
+      connPill.className = 'conn-pill ' + state;
+      connLabel.textContent =
+        state === 'connected'  ? 'Connected'    :
+        state === 'connecting' ? 'Connecting…'  : 'Disconnected';
+    }
+
+    function flashEl(el) {
+      el.classList.add('flash');
+      setTimeout(() => el.classList.remove('flash'), 350);
+    }
+
+    function appendLog(readings) {
+      const newEntries = readings.slice(lastCount);
+      newEntries.forEach(r => {
+        const line = document.createElement('div');
+        line.className = 'log-line';
+        line.innerHTML =
+          `<span class="log-time">${r.time}</span>` +
+          `<span class="log-temp">${r.temp.toFixed(2)} °C</span>` +
+          `<span class="log-idx">#${lastCount + 1}</span>`;
+        logBody.appendChild(line);
+        lastCount++;
+      });
+    }
+
+    // ── Poll /api/data every 1 second ────────────────────────────────────────
+    async function poll() {
+      try {
+        const res  = await fetch('/api/data');
+        const data = await res.json();
+
+        setConn(data.connected ? 'connected' : 'disconnected');
+        chartBadge.textContent = data.connected ? 'LIVE' : 'OFFLINE';
+
+        const readings = data.readings;
+        const temps    = readings.map(r => r.temp);
+        const times    = readings.map(r => r.time);
+
+        // Always update chart — empty array = empty chart, no fallback
+        chart.data.labels            = times;
+        chart.data.datasets[0].data  = temps;
+        chart.update('none');
+
+        // Stats: show 0 when no readings yet
+        const latest = readings.length > 0 ? readings[readings.length - 1] : null;
+        flashEl(statCurrent);
+        statCurrent.textContent = latest ? latest.temp.toFixed(2) : '0';
+        statMin.textContent     = temps.length > 0 ? Math.min(...temps).toFixed(2) : '0';
+        statMax.textContent     = temps.length > 0 ? Math.max(...temps).toFixed(2) : '0';
+        statCount.textContent   = data.count;
+        statLastUpd.textContent = latest ? 'last update: ' + latest.time : 'last update: —';
+
+        appendLog(readings);
+
+      } catch (err) {
+        setConn('disconnected');
+        console.error('Poll error:', err);
+      }
+    }
+
+    poll();
+    setInterval(poll, 1000);
+  </script>
+
+</body>
+</html>
